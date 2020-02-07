@@ -33,8 +33,13 @@ const Player = struct {
     y: i32,
     w: i32,
     h: i32,
+    vel_x: i32,
+    vel_y: i32,
+    max_spd_x: i32,
+    max_spd_y: i32,
     ani_frame_index: i32,
     ani_frame_delay: i32,
+    friction: i32,
 };
 
 pub fn main() anyerror!void {
@@ -76,6 +81,11 @@ pub fn main() anyerror!void {
         .h = 48,
         .ani_frame_index = 0,
         .ani_frame_delay = 0,
+        .vel_x = 0,
+        .vel_y = 0,
+        .max_spd_x = 5,
+        .max_spd_y = 5,
+        .friction = 1,
     };
 
     while (true) {
@@ -87,6 +97,14 @@ pub fn main() anyerror!void {
             }
         }
 
+        const kb_state = c.SDL_GetKeyboardState(null);
+        if (kb_state[c.SDL_SCANCODE_LEFT] != 0 and player.vel_x > -player.max_spd_x) {
+            player.vel_x -= 2;
+        }
+        if (kb_state[c.SDL_SCANCODE_RIGHT] != 0 and player.vel_x < player.max_spd_x) {
+            player.vel_x += 2;
+        }
+
         player.ani_frame_delay += 1;
         if (player.ani_frame_delay >= idle_animation.frame_delay) {
             player.ani_frame_index = @rem(
@@ -94,6 +112,17 @@ pub fn main() anyerror!void {
                 idle_animation.frame_count,
             );
             player.ani_frame_delay = 0;
+        }
+
+        player.x += player.vel_x;
+        player.y += player.vel_y;
+        if (player.vel_x > 0) {
+            player.vel_x -= player.friction;
+            if (player.vel_x < 0) player.vel_x = 0;
+        }
+        if (player.vel_x < 0) {
+            player.vel_x += player.friction;
+            if (player.vel_x > 0) player.vel_x = 0;
         }
 
         sdlAssertZero(c.SDL_RenderClear(renderer));
