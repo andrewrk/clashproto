@@ -1,4 +1,6 @@
 goals for the next 1.5 hours:
- * simple character who can walk left and right
+ * idle animation
+ * move left and right
+ * walk animation
  * jumping, boxes, physics
 

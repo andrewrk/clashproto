@@ -7,6 +7,8 @@ pub fn build(b: *Builder) void {
     exe.setBuildMode(mode);
     exe.setTheTarget(target);
     exe.linkSystemLibrary("SDL2");
+    exe.addIncludeDir("/nix/store/jdlkdkp1wvkkmsndrs72rfymjxcasil0-SDL2-2.0.10-dev/include/SDL2");
+    exe.linkSystemLibrary("SDL2_image");
     exe.linkLibC();
     exe.install();
 
