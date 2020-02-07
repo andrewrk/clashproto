@@ -28,6 +28,18 @@ var idle_animation = Animation{
     .frame_delay = 10,
 };
 
+var walk_animation = Animation{
+    .png_data = @embedFile("../assets/GraveRobber_walk.png"),
+    .texture = undefined,
+    .frame_count = 6,
+    .frame_delay = 10,
+};
+
+const all_animations = [_]*Animation{
+    &idle_animation,
+    &walk_animation,
+};
+
 const Player = struct {
     x: i32,
     y: i32,
@@ -37,9 +49,16 @@ const Player = struct {
     vel_y: i32,
     max_spd_x: i32,
     max_spd_y: i32,
+    ani: *const Animation,
     ani_frame_index: i32,
     ani_frame_delay: i32,
     friction: i32,
+
+    fn startAnimation(player: *Player, animation: *const Animation) void {
+        player.ani = animation;
+        player.ani_frame_index = 0;
+        player.ani_frame_delay = 0;
+    }
 };
 
 pub fn main() anyerror!void {
@@ -72,20 +91,23 @@ pub fn main() anyerror!void {
     };
     defer c.SDL_DestroyRenderer(renderer);
 
-    idle_animation.initialize(renderer);
+    for (all_animations) |anim| {
+        anim.initialize(renderer);
+    }
 
     var player: Player = .{
         .x = 400,
         .y = 400,
         .w = 48,
         .h = 48,
-        .ani_frame_index = 0,
-        .ani_frame_delay = 0,
         .vel_x = 0,
         .vel_y = 0,
-        .max_spd_x = 5,
-        .max_spd_y = 5,
+        .max_spd_x = 3,
+        .max_spd_y = 3,
         .friction = 1,
+        .ani = &idle_animation,
+        .ani_frame_index = 0,
+        .ani_frame_delay = 0,
     };
 
     while (true) {
@@ -98,18 +120,26 @@ pub fn main() anyerror!void {
         }
 
         const kb_state = c.SDL_GetKeyboardState(null);
-        if (kb_state[c.SDL_SCANCODE_LEFT] != 0 and player.vel_x > -player.max_spd_x) {
+        const want_left = kb_state[c.SDL_SCANCODE_LEFT] != 0;
+        const want_right = kb_state[c.SDL_SCANCODE_RIGHT] != 0;
+        const moving = want_left or want_right;
+        if (want_left and player.vel_x > -player.max_spd_x) {
             player.vel_x -= 2;
         }
-        if (kb_state[c.SDL_SCANCODE_RIGHT] != 0 and player.vel_x < player.max_spd_x) {
+        if (want_right and player.vel_x < player.max_spd_x) {
             player.vel_x += 2;
+        }
+        if (moving and player.ani == &idle_animation) {
+            player.startAnimation(&walk_animation);
+        } else if (!moving and player.ani != &idle_animation) {
+            player.startAnimation(&idle_animation);
         }
 
         player.ani_frame_delay += 1;
-        if (player.ani_frame_delay >= idle_animation.frame_delay) {
+        if (player.ani_frame_delay >= player.ani.frame_delay) {
             player.ani_frame_index = @rem(
                 (player.ani_frame_index + 1),
-                idle_animation.frame_count,
+                player.ani.frame_count,
             );
             player.ani_frame_delay = 0;
         }
@@ -139,7 +169,7 @@ pub fn main() anyerror!void {
             .w = player.w,
             .h = player.h,
         };
-        sdlAssertZero(c.SDL_RenderCopy(renderer, idle_animation.texture, &src_rect, &dst_rect));
+        sdlAssertZero(c.SDL_RenderCopy(renderer, player.ani.texture, &src_rect, &dst_rect));
 
         c.SDL_RenderPresent(renderer);
         // delay until the next multiple of 17 milliseconds
