@@ -1,6 +1,11 @@
 const std = @import("std");
 const c = @import("c.zig");
 
+pub fn sdlAssertZero(ret: c_int) void {
+    if (ret == 0) return;
+    std.debug.panic("sdl function returned an error: {c}", .{c.SDL_GetError()});
+}
+
 pub fn main() anyerror!void {
     if (!(c.SDL_SetHintWithPriority(
         c.SDL_HINT_NO_SIGNAL_HANDLERS,
@@ -39,5 +44,8 @@ pub fn main() anyerror!void {
                 else => {},
             }
         }
+
+        sdlAssertZero(c.SDL_RenderClear(renderer));
+        c.SDL_RenderPresent(renderer);
     }
 }
