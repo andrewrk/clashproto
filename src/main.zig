@@ -3,13 +3,38 @@ const c = @import("c.zig");
 const assert = std.debug.assert;
 const panic = std.debug.panic;
 
-const idle_png_data = @embedFile("../assets/GraveRobber_idle.png");
+const Animation = struct {
+    png_data: []const u8,
+    texture: *c.SDL_Texture,
+    frame_count: i32,
+    // in frames
+    frame_delay: i32,
+
+    fn initialize(self: *Animation, renderer: *c.SDL_Renderer) void {
+        const rwops = c.SDL_RWFromConstMem(
+            self.png_data.ptr,
+            @intCast(c_int, self.png_data.len),
+        ).?;
+        const surface = c.IMG_Load_RW(rwops, 0) orelse panic("unable to load image", .{});
+        self.texture = c.SDL_CreateTextureFromSurface(renderer, surface) orelse
+            panic("unable to convert surface to texture", .{});
+    }
+};
+
+var idle_animation = Animation{
+    .png_data = @embedFile("../assets/GraveRobber_idle.png"),
+    .texture = undefined,
+    .frame_count = 4,
+    .frame_delay = 10,
+};
 
 const Player = struct {
     x: i32,
     y: i32,
     w: i32,
     h: i32,
+    ani_frame_index: i32,
+    ani_frame_delay: i32,
 };
 
 pub fn main() anyerror!void {
@@ -42,15 +67,15 @@ pub fn main() anyerror!void {
     };
     defer c.SDL_DestroyRenderer(renderer);
 
-    const rwops = c.SDL_RWFromConstMem(idle_png_data, idle_png_data.len).?;
-    const idle_surface = c.IMG_Load_RW(rwops, 0) orelse panic("unable to load image", .{});
-    const idle_texture = c.SDL_CreateTextureFromSurface(renderer, idle_surface) orelse panic("unable to convert surface to texture", .{});
+    idle_animation.initialize(renderer);
 
     var player: Player = .{
         .x = 400,
         .y = 400,
         .w = 48,
         .h = 48,
+        .ani_frame_index = 0,
+        .ani_frame_delay = 0,
     };
 
     while (true) {
@@ -62,10 +87,19 @@ pub fn main() anyerror!void {
             }
         }
 
+        player.ani_frame_delay += 1;
+        if (player.ani_frame_delay >= idle_animation.frame_delay) {
+            player.ani_frame_index = @rem(
+                (player.ani_frame_index + 1),
+                idle_animation.frame_count,
+            );
+            player.ani_frame_delay = 0;
+        }
+
         sdlAssertZero(c.SDL_RenderClear(renderer));
 
         const src_rect = c.SDL_Rect{
-            .x = 0,
+            .x = player.w * player.ani_frame_index,
             .y = 0,
             .w = player.w,
             .h = player.h,
@@ -76,9 +110,12 @@ pub fn main() anyerror!void {
             .w = player.w,
             .h = player.h,
         };
-        sdlAssertZero(c.SDL_RenderCopy(renderer, idle_texture, &src_rect, &dst_rect));
+        sdlAssertZero(c.SDL_RenderCopy(renderer, idle_animation.texture, &src_rect, &dst_rect));
 
         c.SDL_RenderPresent(renderer);
+        // delay until the next multiple of 17 milliseconds
+        const delay_millis = 17 - (c.SDL_GetTicks() % 17);
+        c.SDL_Delay(delay_millis);
     }
 }
 
