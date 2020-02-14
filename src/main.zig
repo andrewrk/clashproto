@@ -9,6 +9,7 @@ const Animation = struct {
     frame_count: i32,
     // in frames
     frame_delay: i32,
+    center: c.SDL_Point,
 
     fn initialize(self: *Animation, renderer: *c.SDL_Renderer) void {
         const rwops = c.SDL_RWFromConstMem(
@@ -26,6 +27,10 @@ var idle_animation = Animation{
     .texture = undefined,
     .frame_count = 4,
     .frame_delay = 10,
+    .center = .{
+        .x = 17,
+        .y = 32,
+    },
 };
 
 var walk_animation = Animation{
@@ -33,6 +38,10 @@ var walk_animation = Animation{
     .texture = undefined,
     .frame_count = 6,
     .frame_delay = 10,
+    .center = .{
+        .x = 17,
+        .y = 32,
+    },
 };
 
 const all_animations = [_]*Animation{
@@ -53,6 +62,7 @@ const Player = struct {
     ani_frame_index: i32,
     ani_frame_delay: i32,
     friction: i32,
+    direction: i32,
 
     fn startAnimation(player: *Player, animation: *const Animation) void {
         player.ani = animation;
@@ -108,6 +118,7 @@ pub fn main() anyerror!void {
         .ani = &idle_animation,
         .ani_frame_index = 0,
         .ani_frame_delay = 0,
+        .direction = 1,
     };
 
     while (true) {
@@ -123,11 +134,13 @@ pub fn main() anyerror!void {
         const want_left = kb_state[c.SDL_SCANCODE_LEFT] != 0;
         const want_right = kb_state[c.SDL_SCANCODE_RIGHT] != 0;
         const moving = want_left or want_right;
-        if (want_left and player.vel_x > -player.max_spd_x) {
-            player.vel_x -= 2;
+        if (want_left) {
+            player.direction = -1;
+            if (player.vel_x > -player.max_spd_x) player.vel_x -= 2;
         }
-        if (want_right and player.vel_x < player.max_spd_x) {
-            player.vel_x += 2;
+        if (want_right) {
+            player.direction = 1;
+            if (player.vel_x < player.max_spd_x) player.vel_x += 2;
         }
         if (moving and player.ani == &idle_animation) {
             player.startAnimation(&walk_animation);
@@ -169,7 +182,15 @@ pub fn main() anyerror!void {
             .w = player.w,
             .h = player.h,
         };
-        sdlAssertZero(c.SDL_RenderCopy(renderer, player.ani.texture, &src_rect, &dst_rect));
+        sdlAssertZero(c.SDL_RenderCopyEx(
+            renderer,
+            player.ani.texture,
+            &src_rect,
+            &dst_rect,
+            0,
+            &player.ani.center,
+            if (player.direction < 0) .SDL_FLIP_HORIZONTAL else .SDL_FLIP_NONE,
+        ));
 
         c.SDL_RenderPresent(renderer);
         // delay until the next multiple of 17 milliseconds
