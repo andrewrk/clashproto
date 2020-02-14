@@ -9,7 +9,7 @@ const Animation = struct {
     frame_count: i32,
     // in frames
     frame_delay: i32,
-    center: c.SDL_Point,
+    hit_box: c.SDL_Rect,
 
     fn initialize(self: *Animation, renderer: *c.SDL_Renderer) void {
         const rwops = c.SDL_RWFromConstMem(
@@ -27,9 +27,11 @@ var idle_animation = Animation{
     .texture = undefined,
     .frame_count = 4,
     .frame_delay = 10,
-    .center = .{
-        .x = 17,
-        .y = 32,
+    .hit_box = .{
+        .x = 9,
+        .y = 17,
+        .w = 16,
+        .h = 31,
     },
 };
 
@@ -38,9 +40,11 @@ var walk_animation = Animation{
     .texture = undefined,
     .frame_count = 6,
     .frame_delay = 10,
-    .center = .{
-        .x = 17,
-        .y = 32,
+    .hit_box = .{
+        .x = 9,
+        .y = 17,
+        .w = 16,
+        .h = 31,
     },
 };
 
@@ -176,8 +180,13 @@ pub fn main() anyerror!void {
             .w = player.w,
             .h = player.h,
         };
+        const forward = player.direction >= 0;
+        const x_offset = if (forward)
+            -player.ani.hit_box.x
+        else
+            -player.w + player.ani.hit_box.x + player.ani.hit_box.w;
         const dst_rect = c.SDL_Rect{
-            .x = player.x,
+            .x = player.x + x_offset,
             .y = player.y,
             .w = player.w,
             .h = player.h,
@@ -188,8 +197,8 @@ pub fn main() anyerror!void {
             &src_rect,
             &dst_rect,
             0,
-            &player.ani.center,
-            if (player.direction < 0) .SDL_FLIP_HORIZONTAL else .SDL_FLIP_NONE,
+            null,
+            if (forward) .SDL_FLIP_NONE else .SDL_FLIP_HORIZONTAL,
         ));
 
         c.SDL_RenderPresent(renderer);
