@@ -111,6 +111,7 @@ const Block = struct {
 
 const Game = struct {
     player: Player,
+    all_blocks: []Block,
 
     fn init() Game {
         return .{
@@ -127,7 +128,33 @@ const Game = struct {
                 .ani_frame_delay = 0,
                 .direction = 1,
             },
+            .all_blocks = &[_]Block{
+                .{
+                    .pos = .{
+                        .x = 300,
+                        .y = 400,
+                    },
+                    .ani = &block_animation,
+                },
+            },
         };
+    }
+
+    fn collidingWithAnyBlocks(
+        game: *Game,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+    ) bool {
+        for (game.all_blocks) |block| {
+            const is_collision = !(x > block.pos.x + block.ani.hit_box.w or
+                y > block.pos.y + block.ani.hit_box.h or
+                x + w < block.pos.x or
+                y + h < block.pos.y);
+            if (is_collision) return true;
+        }
+        return false;
     }
 };
 
@@ -166,16 +193,6 @@ pub fn main() anyerror!void {
     }
 
     var game = Game.init();
-    var all_blocks: []Block = &[_]Block{
-        .{
-            .pos = .{
-                .x = 300,
-                .y = 400,
-            },
-            .ani = &block_animation,
-        },
-    };
-
     while (true) {
         var event: c.SDL_Event = undefined;
         while (c.SDL_PollEvent(&event) != 0) {
@@ -216,11 +233,37 @@ pub fn main() anyerror!void {
             game.player.ani_frame_delay = 0;
         }
 
+        const new_x = game.player.x + game.player.vel_x;
+        const new_y = game.player.y + game.player.vel_y;
+
+        if (game.collidingWithAnyBlocks(
+            new_x,
+            new_y,
+            game.player.ani.hit_box.w,
+            game.player.ani.hit_box.h,
+        )) {
+            // Test X Axis separately.
+            const is_x_collision = game.collidingWithAnyBlocks(
+                new_x,
+                game.player.y,
+                game.player.ani.hit_box.w,
+                game.player.ani.hit_box.h,
+            );
+            if (!is_x_collision) {
+                game.player.x = new_x;
+                game.player.vel_y = 0;
+            } else {
+                game.player.vel_x = 0;
+                game.player.vel_y = 0;
+            }
+        } else {
+            game.player.x = new_x;
+            game.player.y = new_y;
+        }
+
         // gravity
         game.player.vel_y += 1;
 
-        game.player.x += game.player.vel_x;
-        game.player.y += game.player.vel_y;
         if (game.player.vel_x > 0) {
             game.player.vel_x -= game.player.friction;
             if (game.player.vel_x < 0) game.player.vel_x = 0;
@@ -233,7 +276,7 @@ pub fn main() anyerror!void {
         sdlAssertZero(c.SDL_RenderClear(renderer));
 
         {
-            for (all_blocks) |block| {
+            for (game.all_blocks) |block| {
                 const src_rect = block.ani.sourceRect(0);
                 const dst_rect = c.SDL_Rect{
                     .x = block.pos.x,
@@ -258,7 +301,7 @@ pub fn main() anyerror!void {
             -game.player.ani.frame_width + game.player.ani.hit_box.x + game.player.ani.hit_box.w;
         const dst_rect = c.SDL_Rect{
             .x = game.player.x + x_offset,
-            .y = game.player.y,
+            .y = game.player.y - game.player.ani.hit_box.y,
             .w = game.player.ani.frame_width,
             .h = game.player.ani.frame_height,
         };
