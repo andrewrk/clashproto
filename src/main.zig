@@ -10,6 +10,8 @@ const Animation = struct {
     // in frames
     frame_delay: i32,
     hit_box: c.SDL_Rect,
+    frame_width: i32,
+    frame_height: i32,
 
     fn initialize(self: *Animation, renderer: *c.SDL_Renderer) void {
         const rwops = c.SDL_RWFromConstMem(
@@ -19,6 +21,15 @@ const Animation = struct {
         const surface = c.IMG_Load_RW(rwops, 0) orelse panic("unable to load image", .{});
         self.texture = c.SDL_CreateTextureFromSurface(renderer, surface) orelse
             panic("unable to convert surface to texture", .{});
+    }
+
+    fn sourceRect(self: Animation, frame_index: i32) c.SDL_Rect {
+        return .{
+            .x = self.frame_width * frame_index,
+            .y = 0,
+            .w = self.frame_width,
+            .h = self.frame_height,
+        };
     }
 };
 
@@ -33,6 +44,8 @@ var idle_animation = Animation{
         .w = 16,
         .h = 31,
     },
+    .frame_width = 48,
+    .frame_height = 48,
 };
 
 var walk_animation = Animation{
@@ -46,18 +59,34 @@ var walk_animation = Animation{
         .w = 16,
         .h = 31,
     },
+    .frame_width = 48,
+    .frame_height = 48,
+};
+
+var block_animation = Animation{
+    .png_data = @embedFile("../assets/block.png"),
+    .texture = undefined,
+    .frame_count = 1,
+    .frame_delay = 1,
+    .hit_box = .{
+        .x = 0,
+        .y = 0,
+        .w = 171,
+        .h = 128,
+    },
+    .frame_width = 171,
+    .frame_height = 128,
 };
 
 const all_animations = [_]*Animation{
     &idle_animation,
     &walk_animation,
+    &block_animation,
 };
 
 const Player = struct {
     x: i32,
     y: i32,
-    w: i32,
-    h: i32,
     vel_x: i32,
     vel_y: i32,
     max_spd_x: i32,
@@ -73,6 +102,11 @@ const Player = struct {
         player.ani_frame_index = 0;
         player.ani_frame_delay = 0;
     }
+};
+
+const Block = struct {
+    ani: *const Animation,
+    pos: c.SDL_Point,
 };
 
 pub fn main() anyerror!void {
@@ -111,9 +145,7 @@ pub fn main() anyerror!void {
 
     var player: Player = .{
         .x = 400,
-        .y = 400,
-        .w = 48,
-        .h = 48,
+        .y = 200,
         .vel_x = 0,
         .vel_y = 0,
         .max_spd_x = 3,
@@ -123,6 +155,15 @@ pub fn main() anyerror!void {
         .ani_frame_index = 0,
         .ani_frame_delay = 0,
         .direction = 1,
+    };
+    var all_blocks: []Block = &[_]Block{
+        .{
+            .pos = .{
+                .x = 300,
+                .y = 400,
+            },
+            .ani = &block_animation,
+        },
     };
 
     while (true) {
@@ -174,22 +215,35 @@ pub fn main() anyerror!void {
 
         sdlAssertZero(c.SDL_RenderClear(renderer));
 
-        const src_rect = c.SDL_Rect{
-            .x = player.w * player.ani_frame_index,
-            .y = 0,
-            .w = player.w,
-            .h = player.h,
-        };
+        {
+            for (all_blocks) |block| {
+                const src_rect = block.ani.sourceRect(0);
+                const dst_rect = c.SDL_Rect{
+                    .x = block.pos.x,
+                    .y = block.pos.y,
+                    .w = block.ani.frame_width,
+                    .h = block.ani.frame_height,
+                };
+                sdlAssertZero(c.SDL_RenderCopy(
+                    renderer,
+                    block.ani.texture,
+                    &src_rect,
+                    &dst_rect,
+                ));
+            }
+        }
+
+        const src_rect = player.ani.sourceRect(player.ani_frame_index);
         const forward = player.direction >= 0;
         const x_offset = if (forward)
             -player.ani.hit_box.x
         else
-            -player.w + player.ani.hit_box.x + player.ani.hit_box.w;
+            -player.ani.frame_width + player.ani.hit_box.x + player.ani.hit_box.w;
         const dst_rect = c.SDL_Rect{
             .x = player.x + x_offset,
             .y = player.y,
-            .w = player.w,
-            .h = player.h,
+            .w = player.ani.frame_width,
+            .h = player.ani.frame_height,
         };
         sdlAssertZero(c.SDL_RenderCopyEx(
             renderer,
