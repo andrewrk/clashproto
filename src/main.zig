@@ -109,6 +109,28 @@ const Block = struct {
     pos: c.SDL_Point,
 };
 
+const Game = struct {
+    player: Player,
+
+    fn init() Game {
+        return .{
+            .player = .{
+                .x = 400,
+                .y = 200,
+                .vel_x = 0,
+                .vel_y = 0,
+                .max_spd_x = 3,
+                .max_spd_y = 3,
+                .friction = 1,
+                .ani = &idle_animation,
+                .ani_frame_index = 0,
+                .ani_frame_delay = 0,
+                .direction = 1,
+            },
+        };
+    }
+};
+
 pub fn main() anyerror!void {
     if (!(c.SDL_SetHintWithPriority(
         c.SDL_HINT_NO_SIGNAL_HANDLERS,
@@ -143,19 +165,7 @@ pub fn main() anyerror!void {
         anim.initialize(renderer);
     }
 
-    var player: Player = .{
-        .x = 400,
-        .y = 200,
-        .vel_x = 0,
-        .vel_y = 0,
-        .max_spd_x = 3,
-        .max_spd_y = 3,
-        .friction = 1,
-        .ani = &idle_animation,
-        .ani_frame_index = 0,
-        .ani_frame_delay = 0,
-        .direction = 1,
-    };
+    var game = Game.init();
     var all_blocks: []Block = &[_]Block{
         .{
             .pos = .{
@@ -171,6 +181,10 @@ pub fn main() anyerror!void {
         while (c.SDL_PollEvent(&event) != 0) {
             switch (event.@"type") {
                 c.SDL_QUIT => return,
+                c.SDL_KEYUP => switch (event.key.keysym.scancode) {
+                    .SDL_SCANCODE_BACKSPACE => game = Game.init(),
+                    else => {},
+                },
                 else => {},
             }
         }
@@ -180,37 +194,40 @@ pub fn main() anyerror!void {
         const want_right = kb_state[c.SDL_SCANCODE_RIGHT] != 0;
         const moving = want_left or want_right;
         if (want_left) {
-            player.direction = -1;
-            if (player.vel_x > -player.max_spd_x) player.vel_x -= 2;
+            game.player.direction = -1;
+            if (game.player.vel_x > -game.player.max_spd_x) game.player.vel_x -= 2;
         }
         if (want_right) {
-            player.direction = 1;
-            if (player.vel_x < player.max_spd_x) player.vel_x += 2;
+            game.player.direction = 1;
+            if (game.player.vel_x < game.player.max_spd_x) game.player.vel_x += 2;
         }
-        if (moving and player.ani == &idle_animation) {
-            player.startAnimation(&walk_animation);
-        } else if (!moving and player.ani != &idle_animation) {
-            player.startAnimation(&idle_animation);
+        if (moving and game.player.ani == &idle_animation) {
+            game.player.startAnimation(&walk_animation);
+        } else if (!moving and game.player.ani != &idle_animation) {
+            game.player.startAnimation(&idle_animation);
         }
 
-        player.ani_frame_delay += 1;
-        if (player.ani_frame_delay >= player.ani.frame_delay) {
-            player.ani_frame_index = @rem(
-                (player.ani_frame_index + 1),
-                player.ani.frame_count,
+        game.player.ani_frame_delay += 1;
+        if (game.player.ani_frame_delay >= game.player.ani.frame_delay) {
+            game.player.ani_frame_index = @rem(
+                (game.player.ani_frame_index + 1),
+                game.player.ani.frame_count,
             );
-            player.ani_frame_delay = 0;
+            game.player.ani_frame_delay = 0;
         }
 
-        player.x += player.vel_x;
-        player.y += player.vel_y;
-        if (player.vel_x > 0) {
-            player.vel_x -= player.friction;
-            if (player.vel_x < 0) player.vel_x = 0;
+        // gravity
+        game.player.vel_y += 1;
+
+        game.player.x += game.player.vel_x;
+        game.player.y += game.player.vel_y;
+        if (game.player.vel_x > 0) {
+            game.player.vel_x -= game.player.friction;
+            if (game.player.vel_x < 0) game.player.vel_x = 0;
         }
-        if (player.vel_x < 0) {
-            player.vel_x += player.friction;
-            if (player.vel_x > 0) player.vel_x = 0;
+        if (game.player.vel_x < 0) {
+            game.player.vel_x += game.player.friction;
+            if (game.player.vel_x > 0) game.player.vel_x = 0;
         }
 
         sdlAssertZero(c.SDL_RenderClear(renderer));
@@ -233,21 +250,21 @@ pub fn main() anyerror!void {
             }
         }
 
-        const src_rect = player.ani.sourceRect(player.ani_frame_index);
-        const forward = player.direction >= 0;
+        const src_rect = game.player.ani.sourceRect(game.player.ani_frame_index);
+        const forward = game.player.direction >= 0;
         const x_offset = if (forward)
-            -player.ani.hit_box.x
+            -game.player.ani.hit_box.x
         else
-            -player.ani.frame_width + player.ani.hit_box.x + player.ani.hit_box.w;
+            -game.player.ani.frame_width + game.player.ani.hit_box.x + game.player.ani.hit_box.w;
         const dst_rect = c.SDL_Rect{
-            .x = player.x + x_offset,
-            .y = player.y,
-            .w = player.ani.frame_width,
-            .h = player.ani.frame_height,
+            .x = game.player.x + x_offset,
+            .y = game.player.y,
+            .w = game.player.ani.frame_width,
+            .h = game.player.ani.frame_height,
         };
         sdlAssertZero(c.SDL_RenderCopyEx(
             renderer,
-            player.ani.texture,
+            game.player.ani.texture,
             &src_rect,
             &dst_rect,
             0,
