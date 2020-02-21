@@ -171,6 +171,20 @@ const Game = struct {
                     },
                     .ani = &block_animation,
                 },
+                .{
+                    .pos = .{
+                        .x = 100,
+                        .y = 300,
+                    },
+                    .ani = &block_animation,
+                },
+                .{
+                    .pos = .{
+                        .x = 400,
+                        .y = 300,
+                    },
+                    .ani = &block_animation,
+                },
             },
         };
     }
