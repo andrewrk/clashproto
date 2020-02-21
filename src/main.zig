@@ -63,6 +63,21 @@ var walk_animation = Animation{
     .frame_height = 48,
 };
 
+var jump_animation = Animation{
+    .png_data = @embedFile("../assets/GraveRobber_jump.png"),
+    .texture = undefined,
+    .frame_count = 6,
+    .frame_delay = 4,
+    .hit_box = .{
+        .x = 9,
+        .y = 17,
+        .w = 16,
+        .h = 31,
+    },
+    .frame_width = 48,
+    .frame_height = 48,
+};
+
 var block_animation = Animation{
     .png_data = @embedFile("../assets/block.png"),
     .texture = undefined,
@@ -81,6 +96,7 @@ var block_animation = Animation{
 const all_animations = [_]*Animation{
     &idle_animation,
     &walk_animation,
+    &jump_animation,
     &block_animation,
 };
 
@@ -90,6 +106,7 @@ const Player = struct {
 
     /// Top of the player hit box
     y: i32,
+
     vel_x: i32,
     vel_y: i32,
     max_spd_x: i32,
@@ -97,13 +114,26 @@ const Player = struct {
     ani: *const Animation,
     ani_frame_index: i32,
     ani_frame_delay: i32,
+    jump_frame: i32,
     friction: i32,
     direction: i32,
+    grounded: bool,
 
     fn startAnimation(player: *Player, animation: *const Animation) void {
         player.ani = animation;
         player.ani_frame_index = 0;
         player.ani_frame_delay = 0;
+    }
+
+    fn isJumping(player: *Player) bool {
+        return player.jump_frame >= 0 and player.jump_frame <= jump_up_index;
+    }
+
+    fn land(player: *Player) void {
+        if (player.ani == &jump_animation and player.jump_frame >= jump_down_index) {
+            player.startAnimation(&idle_animation);
+        }
+        player.grounded = true;
     }
 };
 
@@ -129,7 +159,9 @@ const Game = struct {
                 .ani = &idle_animation,
                 .ani_frame_index = 0,
                 .ani_frame_delay = 0,
+                .jump_frame = 666,
                 .direction = 1,
+                .grounded = false,
             },
             .all_blocks = &[_]Block{
                 .{
@@ -160,6 +192,9 @@ const Game = struct {
         return null;
     }
 };
+
+const jump_up_index = 3;
+const jump_down_index = 4;
 
 pub fn main() anyerror!void {
     if (!(c.SDL_SetHintWithPriority(
@@ -212,6 +247,7 @@ pub fn main() anyerror!void {
         const kb_state = c.SDL_GetKeyboardState(null);
         const want_left = kb_state[c.SDL_SCANCODE_LEFT] != 0;
         const want_right = kb_state[c.SDL_SCANCODE_RIGHT] != 0;
+        const want_up = kb_state[c.SDL_SCANCODE_UP] != 0;
         const moving = want_left or want_right;
         if (want_left) {
             game.player.direction = -1;
@@ -221,19 +257,49 @@ pub fn main() anyerror!void {
             game.player.direction = 1;
             if (game.player.vel_x < game.player.max_spd_x) game.player.vel_x += 2;
         }
-        if (moving and game.player.ani == &idle_animation) {
-            game.player.startAnimation(&walk_animation);
-        } else if (!moving and game.player.ani != &idle_animation) {
-            game.player.startAnimation(&idle_animation);
+        if (!game.player.isJumping()) {
+            if (moving and game.player.ani == &idle_animation) {
+                game.player.startAnimation(&walk_animation);
+            } else if (!moving and game.player.ani != &idle_animation) {
+                game.player.startAnimation(&idle_animation);
+            }
         }
 
-        game.player.ani_frame_delay += 1;
-        if (game.player.ani_frame_delay >= game.player.ani.frame_delay) {
-            game.player.ani_frame_index = @rem(
-                (game.player.ani_frame_index + 1),
-                game.player.ani.frame_count,
-            );
-            game.player.ani_frame_delay = 0;
+        if (want_up and game.player.grounded and !game.player.isJumping()) {
+            game.player.jump_frame = 0;
+            game.player.startAnimation(&jump_animation);
+        }
+
+        if (game.player.isJumping()) {
+            game.player.ani_frame_delay += 1;
+            if (game.player.ani_frame_delay >= game.player.ani.frame_delay) {
+                game.player.ani_frame_delay = 0;
+
+                game.player.jump_frame += 1;
+                if (game.player.jump_frame < jump_up_index - 1) {
+                    game.player.ani_frame_index = game.player.jump_frame;
+                } else {
+                    const jump_velocity = 10;
+                    game.player.vel_y = -jump_velocity;
+                    game.player.ani_frame_index = game.player.jump_frame;
+                    game.player.grounded = false;
+                }
+            }
+        } else if (!game.player.grounded and game.player.vel_y < 0) {
+            game.player.startAnimation(&jump_animation);
+            game.player.ani_frame_index = jump_up_index;
+        } else if (!game.player.grounded and game.player.vel_y > 0) {
+            game.player.startAnimation(&jump_animation);
+            game.player.ani_frame_index = jump_down_index;
+        } else {
+            game.player.ani_frame_delay += 1;
+            if (game.player.ani_frame_delay >= game.player.ani.frame_delay) {
+                game.player.ani_frame_index = @rem(
+                    (game.player.ani_frame_index + 1),
+                    game.player.ani.frame_count,
+                );
+                game.player.ani_frame_delay = 0;
+            }
         }
 
         const new_x = game.player.x + game.player.vel_x;
@@ -263,18 +329,24 @@ pub fn main() anyerror!void {
                 // Move them to be flush with the object.
                 if (game.player.vel_y > 0) {
                     game.player.y = hit_block.pos.y - game.player.ani.hit_box.h;
+                    game.player.land();
                 } else {
                     game.player.y = hit_block.pos.y + hit_block.ani.hit_box.h;
                 }
                 game.player.vel_y = 0;
             } else if (!is_y_collision) {
                 game.player.y = new_y;
+                // TODO above logic here
                 game.player.vel_x = 0;
             } else {
+                if (game.player.vel_y > 0) {
+                    game.player.land();
+                }
                 game.player.vel_x = 0;
                 game.player.vel_y = 0;
             }
         } else {
+            game.player.grounded = false;
             game.player.x = new_x;
             game.player.y = new_y;
         }
