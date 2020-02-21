@@ -242,16 +242,25 @@ pub fn main() anyerror!void {
             game.player.ani.hit_box.w,
             game.player.ani.hit_box.h,
         )) {
-            // Test X Axis separately.
+            // Test the axes separately.
             const is_x_collision = game.collidingWithAnyBlocks(
                 new_x,
                 game.player.y,
                 game.player.ani.hit_box.w,
                 game.player.ani.hit_box.h,
             );
+            const is_y_collision = game.collidingWithAnyBlocks(
+                game.player.x,
+                new_y,
+                game.player.ani.hit_box.w,
+                game.player.ani.hit_box.h,
+            );
             if (!is_x_collision) {
                 game.player.x = new_x;
                 game.player.vel_y = 0;
+            } else if (!is_y_collision) {
+                game.player.y = new_y;
+                game.player.vel_x = 0;
             } else {
                 game.player.vel_x = 0;
                 game.player.vel_y = 0;
