@@ -85,7 +85,10 @@ const all_animations = [_]*Animation{
 };
 
 const Player = struct {
+    /// Left of the player hit box
     x: i32,
+
+    /// Top of the player hit box
     y: i32,
     vel_x: i32,
     vel_y: i32,
@@ -146,15 +149,15 @@ const Game = struct {
         y: i32,
         w: i32,
         h: i32,
-    ) bool {
-        for (game.all_blocks) |block| {
-            const is_collision = !(x > block.pos.x + block.ani.hit_box.w or
-                y > block.pos.y + block.ani.hit_box.h or
-                x + w < block.pos.x or
-                y + h < block.pos.y);
-            if (is_collision) return true;
+    ) ?*const Block {
+        for (game.all_blocks) |*block| {
+            const is_collision = !(x >= block.pos.x + block.ani.hit_box.w or
+                y >= block.pos.y + block.ani.hit_box.h or
+                x + w <= block.pos.x or
+                y + h <= block.pos.y);
+            if (is_collision) return block;
         }
-        return false;
+        return null;
     }
 };
 
@@ -241,22 +244,28 @@ pub fn main() anyerror!void {
             new_y,
             game.player.ani.hit_box.w,
             game.player.ani.hit_box.h,
-        )) {
+        )) |hit_block| {
             // Test the axes separately.
             const is_x_collision = game.collidingWithAnyBlocks(
                 new_x,
                 game.player.y,
                 game.player.ani.hit_box.w,
                 game.player.ani.hit_box.h,
-            );
+            ) != null;
             const is_y_collision = game.collidingWithAnyBlocks(
                 game.player.x,
                 new_y,
                 game.player.ani.hit_box.w,
                 game.player.ani.hit_box.h,
-            );
+            ) != null;
             if (!is_x_collision) {
                 game.player.x = new_x;
+                // Move them to be flush with the object.
+                if (game.player.vel_y > 0) {
+                    game.player.y = hit_block.pos.y - game.player.ani.hit_box.h;
+                } else {
+                    game.player.y = hit_block.pos.y + hit_block.ani.hit_box.h;
+                }
                 game.player.vel_y = 0;
             } else if (!is_y_collision) {
                 game.player.y = new_y;

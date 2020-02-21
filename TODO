@@ -1,4 +1,3 @@
- * solve the bug with stopping before hitting the ground
  * jumping
  * stb image instead of SDL_image
  * boxes around the borders
