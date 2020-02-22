@@ -14,11 +14,30 @@ const Animation = struct {
     frame_height: i32,
 
     fn initialize(self: *Animation, renderer: *c.SDL_Renderer) void {
-        const rwops = c.SDL_RWFromConstMem(
+        var width: c_int = undefined;
+        var height: c_int = undefined;
+        const channel_count = 4;
+        const bits_per_channel = 8;
+        const image_data = c.stbi_load_from_memory(
             self.png_data.ptr,
             @intCast(c_int, self.png_data.len),
-        ).?;
-        const surface = c.IMG_Load_RW(rwops, 0) orelse panic("unable to load image", .{});
+            &width,
+            &height,
+            null,
+            channel_count,
+        );
+        const pitch = width * channel_count;
+        const surface = c.SDL_CreateRGBSurfaceFrom(
+            image_data,
+            width,
+            height,
+            channel_count * bits_per_channel,
+            pitch,
+            0x000000ff,
+            0x0000ff00,
+            0x00ff0000,
+            0xff000000,
+        );
         self.texture = c.SDL_CreateTextureFromSurface(renderer, surface) orelse
             panic("unable to convert surface to texture", .{});
     }

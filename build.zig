@@ -4,11 +4,11 @@ pub fn build(b: *Builder) void {
     const target = b.standardTargetOptions(null);
     const mode = b.standardReleaseOptions();
     const exe = b.addExecutable("clashproto", "src/main.zig");
+    exe.addCSourceFile("deps/stb_image.c", &[_][]const u8{"-std=c99"});
+    exe.addIncludeDir("deps");
     exe.setBuildMode(mode);
     exe.setTheTarget(target);
     exe.linkSystemLibrary("SDL2");
-    exe.addIncludeDir("/nix/store/jdlkdkp1wvkkmsndrs72rfymjxcasil0-SDL2-2.0.10-dev/include/SDL2");
-    exe.linkSystemLibrary("SDL2_image");
     exe.linkLibC();
     exe.install();
 
