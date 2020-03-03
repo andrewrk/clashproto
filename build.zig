@@ -8,7 +8,17 @@ pub fn build(b: *Builder) void {
     exe.addIncludeDir("deps");
     exe.setBuildMode(mode);
     exe.setTarget(target);
-    exe.linkSystemLibrary("SDL2");
+
+    if (target.getOsTag() == .windows and target.getAbi() == .gnu) {
+        @import("deps/zig-sdl/build.zig").linkArtifact(b, .{
+            .artifact = exe,
+            .prefix = "deps/zig-sdl",
+            .override_mode = .ReleaseFast,
+        });
+    } else {
+        exe.linkSystemLibrary("SDL2");
+    }
+
     exe.linkLibC();
     exe.install();
 
