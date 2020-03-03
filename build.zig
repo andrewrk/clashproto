@@ -15,8 +15,14 @@ pub fn build(b: *Builder) void {
             .prefix = "deps/zig-sdl",
             .override_mode = .ReleaseFast,
         });
+        @import("deps/libsoundio/build.zig").linkArtifact(b, .{
+            .artifact = exe,
+            .prefix = "deps/libsoundio",
+            .override_mode = .ReleaseFast,
+        });
     } else {
         exe.linkSystemLibrary("SDL2");
+        exe.linkSystemLibrary("soundio");
     }
 
     exe.linkLibC();
