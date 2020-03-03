@@ -1,7 +1,10 @@
-const Builder = @import("std").build.Builder;
+const std = @import("std");
+const Builder = std.build.Builder;
 
 pub fn build(b: *Builder) void {
-    const target = b.standardTargetOptions(.{});
+    const target = b.standardTargetOptions(.{
+        .default_target = if (std.Target.current.os.tag == .windows) .{ .abi = .gnu } else .{},
+    });
     const mode = b.standardReleaseOptions();
     const exe = b.addExecutable("clashproto", "src/main.zig");
     exe.addCSourceFile("deps/stb_image.c", &[_][]const u8{"-std=c99"});
